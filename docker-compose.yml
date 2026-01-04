@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: headwind-postgres
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    build: .
+    container_name: headwind-nginx
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    environment:
+      - HMDM_SERVER_URL=${HMDM_SERVER_URL}
+      - SSL_CERTIFICATE_PATH=${SSL_CERTIFICATE_PATH}
+      - SSL_CERTIFICATE_KEY_PATH=${SSL_CERTIFICATE_KEY_PATH}
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+    volumes:
+      # Mount SSL certificates
+      - ./certs:/etc/ssl/certs:ro
+      - ./private:/etc/ssl/private:ro
+      # Tomcat data
+      - tomcat_data:/var/lib/tomcat9
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  tomcat_data:

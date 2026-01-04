@@ -1,0 +1,27 @@
+# Environment variables
+.env
+
+# SSL Certificates and Private Keys
+certs/*
+!certs/.gitkeep
+!certs/README.md
+
+private/*
+!private/.gitkeep
+!private/README.md
+
+# Docker
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Nginx logs
+*.log
