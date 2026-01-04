@@ -18,25 +18,36 @@ This Docker Compose setup installs and runs Headwind MDM with Nginx as a reverse
 - **hmdm-install.sh** - Script to download and install Headwind MDM
 - **docker-compose.yml** - Docker Compose configuration with PostgreSQL service
 - **.env** - Environment variables file
-- **generate-certs.sh** - Script to generate private key and CSR file
+- **setup.sh** - Linux/macOS setup script (configures environment and permissions)
+- **setup.ps1** - Windows PowerShell setup script
+- **generate-certs.sh** - Linux/macOS script to generate private key and CSR file
+- **generate-certs.ps1** - Windows PowerShell script to generate private key and CSR file
 
 ## Quick Start
 
 ### 0. Clone and Setup
 
-Clone the repository and run the setup script:
+Clone the repository and run the setup script appropriate for your operating system:
 
+**Linux/macOS:**
 ```bash
 git clone <repository-url>
 cd headwind-hmdm-install
 ./setup.sh
 ```
 
+**Windows:**
+```powershell
+git clone <repository-url>
+cd headwind-hmdm-install
+.\setup.ps1
+```
+
 The setup script automatically:
 - Configures Git hooks for automatic script permission updates on future pulls
-- Makes all scripts executable
 - Creates necessary directories for certificates
 - Sets up `.env` from `.env.example` if needed
+- (Linux/macOS only) Makes all scripts executable
 
 ### 1. Configure Environment Variables
 
@@ -65,8 +76,14 @@ Place your SSL certificate files in:
 
 Or generate a Certificate Signing Request (CSR) for a Certificate Authority:
 
+**Linux/macOS:**
 ```bash
 ./generate-certs.sh
+```
+
+**Windows:**
+```powershell
+.\generate-certs.ps1
 ```
 
 This will create:
@@ -75,14 +92,24 @@ This will create:
 
 **Certificate Type Options:**
 
-The `generate-certs.sh` script supports both ECC and RSA certificate types:
+The certificate generation script supports both ECC and RSA certificate types:
 
+**Linux/macOS:**
 ```bash
 # Generate ECC certificate (default, recommended)
 CERT_TYPE=ecc ./generate-certs.sh
 
 # Generate RSA certificate
 CERT_TYPE=rsa ./generate-certs.sh
+```
+
+**Windows:**
+```powershell
+# Generate ECC certificate (default, recommended)
+$env:CERT_TYPE='ecc'; .\generate-certs.ps1
+
+# Generate RSA certificate
+$env:CERT_TYPE='rsa'; .\generate-certs.ps1
 ```
 
 You can also set `CERT_TYPE` in `.env`:
