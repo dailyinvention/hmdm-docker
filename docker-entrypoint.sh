@@ -149,8 +149,9 @@ INSTALLER_RUNNER
         exit 1
     fi
     
-    # Clean up
     cd /
+    
+    # Clean up temp install directory
     rm -rf "$TEMP_INSTALL_DIR"
     
 else
@@ -211,6 +212,71 @@ echo "  - Tomcat: http://localhost:8080 (application server)"
 echo "  - Default login: admin:admin"
 echo "  - Database: ${DB_HOST:-postgres}/${DB_NAME:-hmdm}"
 echo ""
+
+# Start background task to apply English SQL after Liquibase finishes migrations
+(
+    # Wait for Liquibase to complete by checking for a specific table that's created during migrations
+    echo "⏳ Waiting for Liquibase database initialization to complete..."
+    WAIT_COUNT=0
+    MAX_WAIT=180  # 3 minutes max
+    until PGPASSWORD="${DB_PASSWORD}" psql -h "${DB_HOST:-postgres}" -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1 FROM databasechangelog LIMIT 1" > /dev/null 2>&1; do
+        WAIT_COUNT=$((WAIT_COUNT + 1))
+        if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+            echo "⚠ Liquibase initialization timeout"
+            break
+        fi
+        sleep 1
+    done
+    
+    # Additional delay to ensure all migrations are complete and tables exist
+    echo "⏳ Waiting for database tables to be created..."
+    sleep 15
+    
+    # Verify required tables exist
+    TABLES_READY=0
+    for i in {1..30}; do
+        PGPASSWORD="${DB_PASSWORD}" psql -h "${DB_HOST:-postgres}" -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1 FROM configurations LIMIT 1" > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            TABLES_READY=1
+            echo "✓ All required tables are ready"
+            break
+        fi
+        sleep 1
+    done
+    
+    # Apply complete English language SQL from the installer archive
+    echo "✓ Applying complete English language configuration..."
+    ENGLISH_SQL_FILE="/tmp/hmdm_init_english.sql"
+    
+    # Extract English SQL from the pre-downloaded installer ZIP
+    unzip -j -o /hmdm-pre-downloaded/hmdm-5.37-install-ubuntu.zip 'hmdm-install/install/sql/hmdm_init.en.sql' -d /tmp/ > /dev/null 2>&1
+    if [ -f "/tmp/hmdm_init.en.sql" ]; then
+        mv /tmp/hmdm_init.en.sql "$ENGLISH_SQL_FILE"
+    fi
+    
+    if [ -f "$ENGLISH_SQL_FILE" ]; then
+        echo "  Applying $(wc -l < "$ENGLISH_SQL_FILE") SQL statements..."
+        SQL_OUTPUT=$(mktemp)
+        PGPASSWORD="${DB_PASSWORD}" psql -h "${DB_HOST:-postgres}" -U "${DB_USER}" -d "${DB_NAME}" -f "$ENGLISH_SQL_FILE" > "$SQL_OUTPUT" 2>&1
+        SQL_RESULT=$?
+        
+        if [ $SQL_RESULT -eq 0 ]; then
+            # Verify configuration was updated
+            CONFIG_NAME=$(PGPASSWORD="${DB_PASSWORD}" psql -h "${DB_HOST:-postgres}" -U "${DB_USER}" -d "${DB_NAME}" -tc "SELECT name FROM configurations LIMIT 1;" 2>/dev/null | xargs)
+            if [ "$CONFIG_NAME" = "Managed Launcher" ]; then
+                echo "✅ English configuration applied successfully!"
+                echo "   Configuration name: '$CONFIG_NAME'"
+            else
+                echo "⚠ SQL applied but configuration shows: '$CONFIG_NAME'"
+            fi
+        else
+            echo "⚠ Failed to apply English SQL"
+        fi
+        rm -f "$SQL_OUTPUT" "$ENGLISH_SQL_FILE"
+    else
+        echo "⚠ English SQL file could not be extracted from installer archive"
+    fi
+) &
 
 # Start Tomcat in foreground so Docker container stays running
 if [ -x /usr/share/tomcat9/bin/catalina.sh ]; then
