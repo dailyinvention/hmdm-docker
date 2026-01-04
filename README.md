@@ -374,8 +374,24 @@ docker-compose down -v
 1. **Change Database Password**: Update `DB_PASSWORD` in `.env` to a strong password
 2. **Change Admin Password**: First login to Headwind MDM and change default `admin:admin` credentials
 3. **SSL Certificates**: Use proper SSL certificates (not self-signed) in production
-4. **Firewall**: Restrict access to ports 80, 443, and 8080 as needed
+4. **Firewall**: Restrict access to ports 80, 443, 31000, and 8080 as needed
 5. **Backups**: Regularly backup the PostgreSQL volume (`postgres_data`)
+
+### Disclaimer
+
+This Docker setup is provided as-is for deploying Headwind MDM. While these scripts and configurations follow best practices, **users are responsible for:**
+
+- Securing their infrastructure, software, and network
+- Maintaining and updating the system
+
+**The creators of this setup are not liable for:**
+- Security breaches or data loss
+- Misconfiguration or improper deployment
+- Failure to follow security recommendations
+- System downtime or service interruptions
+- Any damages or losses resulting from the use of this setup
+
+It is your responsibility to ensure this deployment meets your security and compliance requirements.
 
 ## Production Considerations
 
