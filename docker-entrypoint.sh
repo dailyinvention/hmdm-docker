@@ -12,8 +12,6 @@ until pg_isready -h "${DB_HOST:-postgres}" -U postgres > /dev/null 2>&1; do
   ATTEMPT=$((ATTEMPT + 1))
   if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
     echo "ERROR: PostgreSQL failed to start after ${MAX_ATTEMPTS} seconds"
-    echo "Checking PostgreSQL container logs:"
-    docker logs headwind-postgres 2>&1 | tail -20
     exit 1
   fi
   if [ $((ATTEMPT % 10)) -eq 0 ]; then
@@ -30,18 +28,16 @@ if [ $? -eq 0 ]; then
     echo "Database ${DB_NAME} is accessible"
 else
     echo "Database ${DB_NAME} not accessible, attempting to create..."
-    # The POSTGRES_USER (DB_USER) is the superuser when POSTGRES_USER is specified
     PGPASSWORD="${DB_PASSWORD}" psql -h "${DB_HOST:-postgres}" -U "${DB_USER}" -d postgres -c "CREATE DATABASE ${DB_NAME};" 2>/dev/null || echo "Database ${DB_NAME} already exists"
     echo "Database setup complete"
 fi
 
-# Define Tomcat webapps directory (using Apache Tomcat from /opt/tomcat)
-TOMCAT_WEBAPPS="/opt/tomcat/webapps"
-TOMCAT_CONF="/opt/tomcat/conf/Catalina/localhost"
+# Define Tomcat webapps directory (using /var/lib/tomcat9 - standard Ubuntu location)
+TOMCAT_WEBAPPS="/var/lib/tomcat9/webapps"
 
-# Check if HMDM is already deployed (check for WEB-INF which indicates a deployed WAR)
+# Check if HMDM is already deployed
 if [ ! -d "$TOMCAT_WEBAPPS/ROOT/WEB-INF" ] && [ ! -f "$TOMCAT_WEBAPPS/ROOT.war" ]; then
-    echo "Headwind MDM not installed. Deploying from pre-downloaded installer..."
+    echo "Headwind MDM not installed. Running official installer..."
     
     # Create temp directory for installer
     TEMP_INSTALL_DIR="/tmp/hmdm-install-temp"
@@ -50,122 +46,115 @@ if [ ! -d "$TOMCAT_WEBAPPS/ROOT/WEB-INF" ] && [ ! -f "$TOMCAT_WEBAPPS/ROOT.war" 
     
     # Extract the pre-downloaded installer
     if [ -d "/hmdm-pre-downloaded" ] && [ -f "/hmdm-pre-downloaded/hmdm-5.37-install-ubuntu.zip" ]; then
-        echo "✓ Using pre-downloaded HMDM installer..."
+        echo "✓ Extracting HMDM installer..."
         cd "$TEMP_INSTALL_DIR" && unzip -o -q "/hmdm-pre-downloaded/hmdm-5.37-install-ubuntu.zip" && cd /
     else
-        echo "ERROR: Pre-downloaded installer not found at /hmdm-pre-downloaded/hmdm-5.37-install-ubuntu.zip"
+        echo "ERROR: Pre-downloaded installer not found"
         exit 1
     fi
     
-    # Deploy the WAR file directly to ROOT directory
-    if [ -f "$TEMP_INSTALL_DIR/hmdm-install/hmdm-5.37.3-os.war" ]; then
-        echo "✓ Found hmdm-5.37.3-os.war, extracting to ROOT directory..."
-        mkdir -p "$TOMCAT_WEBAPPS/ROOT"
-        cd "$TOMCAT_WEBAPPS/ROOT" && unzip -o -q "$TEMP_INSTALL_DIR/hmdm-install/hmdm-5.37.3-os.war" && cd /
+    INSTALL_DIR="$TEMP_INSTALL_DIR/hmdm-install"
+    
+    # Verify installer structure
+    if [ ! -f "$INSTALL_DIR/hmdm_install.sh" ] || [ ! -f "$INSTALL_DIR/hmdm-5.37.3-os.war" ]; then
+        echo "ERROR: Installer structure is incomplete"
+        exit 1
+    fi
+    
+    echo "✓ Creating automated installer wrapper..."
+    
+    # Create a script that pipes all installer answers to stdin
+    cat > "$TEMP_INSTALL_DIR/run_installer.sh" << 'INSTALLER_RUNNER'
+#!/bin/bash
+set -e
+
+INSTALL_DIR="$1"
+cd "$INSTALL_DIR"
+
+# Prepare all configuration values
+LANGUAGE="${LANGUAGE:-en}"
+SQL_HOST="${DB_HOST:-postgres}"
+SQL_PORT="${DB_PORT:-5432}"
+SQL_BASE="${DB_NAME:-hmdm}"
+SQL_USER="${DB_USER:-hmdm}"
+SQL_PASS="${DB_PASSWORD:-topsecret}"
+LOCATION="/var/lib/tomcat9/work/hmdm"
+SCRIPT_LOCATION="/var/lib/tomcat9/work/hmdm"
+PROTOCOL="${PROTOCOL:-https}"
+BASE_DOMAIN="${HMDM_SERVER_URL:-hmdm.example.com}"
+PORT="${HMDM_PORT:-}"
+BASE_PATH="${HMDM_BASE_PATH:-ROOT}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
+SMTP_HOST="${SMTP_HOST:-}"
+SMTP_PORT="${SMTP_PORT:-587}"
+SMTP_SSL="${SMTP_SSL:-0}"
+SMTP_STARTTLS="${SMTP_STARTTLS:-0}"
+SMTP_USERNAME="${SMTP_USERNAME:-}"
+SMTP_PASSWORD="${SMTP_PASSWORD:-}"
+SMTP_FROM="${SMTP_FROM:-noreply@${HMDM_SERVER_URL:-hmdm.example.com}}"
+
+# CRITICAL FIX: Pre-set LANGUAGE variable in the installer script
+# The read command uses read -i "$LANGUAGE" which respects an already-set LANGUAGE variable
+# We sed the script to inject our LANGUAGE value right at the start
+sed -i "1a export LANGUAGE='$LANGUAGE'" hmdm_install.sh
+
+# Pipe all answers to the installer script stdin
+# The order must match the read statements in hmdm_install.sh
+(
+  echo ""  # LANGUAGE - allow read -i default to use exported LANGUAGE 
+  echo "$SQL_HOST"
+  echo "$SQL_PORT"
+  echo "$SQL_BASE"
+  echo "$SQL_USER"
+  echo "$SQL_PASS"
+  echo "$LOCATION"
+  echo "$SCRIPT_LOCATION"
+  echo "$PROTOCOL"
+  echo "$BASE_DOMAIN"
+  echo "$PORT"
+  echo "$BASE_PATH"
+  # Setup SMTP? (Y/n) - default to n
+  echo "n"
+  # Is this information correct? (Y/n) - answer Y
+  echo "Y"
+  # Setup HTTPS via LetsEncrypt? (Y/n) - answer n
+  echo "n"
+  # Use iptables to redirect? (Y/n) - answer n
+  echo "n"
+  # Move required APKs? (Y/n) - answer n
+  echo "n"
+) | bash hmdm_install.sh 2>&1 | tee /tmp/hmdm-install.log
+
+INSTALLER_RUNNER
+    
+    chmod +x "$TEMP_INSTALL_DIR/run_installer.sh"
+    
+    # Run the automated installer
+    echo "✓ Running HMDM installer with automated configuration (Language: ${LANGUAGE:-en})..."
+    bash "$TEMP_INSTALL_DIR/run_installer.sh" "$INSTALL_DIR" 2>&1 | tail -100
+    
+    INSTALL_RESULT=$?
+    if [ $INSTALL_RESULT -eq 0 ]; then
+        echo "✓ HMDM installer completed successfully"
     else
-        echo "ERROR: WAR file not found in installer"
-        exit 1
+        echo "⚠ HMDM installer exited with code $INSTALL_RESULT"
+        tail -50 /tmp/hmdm-install.log
     fi
     
-    # Create HMDM work directory structure
-    mkdir -p /opt/tomcat/work/hmdm/files
-    mkdir -p /opt/tomcat/work/hmdm/plugins
-    chmod -R 755 /opt/tomcat/work/hmdm
-    
-    # Create Tomcat context configuration directory
-    mkdir -p "$TOMCAT_CONF"
-    
-    # Create the ROOT.xml Tomcat context configuration with all HMDM parameters
-    # This is the proper way HMDM loads configuration - via Tomcat Context Parameters
-    echo "Creating Tomcat context configuration for HMDM..."
-    cat > "$TOMCAT_CONF/ROOT.xml" << 'TOMCAT_CONTEXT'
-<?xml version="1.0" encoding="UTF-8"?>
-<Context>
-    <!-- database configurations -->
-    <Parameter name="JDBC.driver"   value="org.postgresql.Driver"/>
-    <Parameter name="JDBC.url"      value="jdbc:postgresql://postgres:5432/hmdm"/>
-    <Parameter name="JDBC.username" value="hmdm"/>
-    <Parameter name="JDBC.password" value="topsecret"/>
-
-    <!-- This directory is used to as a base directory to store app data -->
-    <Parameter name="base.directory" value="/opt/tomcat/work/hmdm"/>
-    
-    <!-- This directory is used to store uploaded app files, must be accessible for tomcat user -->
-    <Parameter name="files.directory" value="/opt/tomcat/work/hmdm/files"/>
-    
-    <!-- URL used to open Headwind MDM control panel -->
-    <Parameter name="base.url" value="https://hmdm.example.com/ROOT"/>
-    
-    <!-- private / shared; shared can be used only in Enterprise solution -->
-    <Parameter name="usage.scenario" value="private" />
-
-    <!-- If set to 1, the device configuration request must be signed by a shared secret -->
-    <Parameter name="secure.enrollment" value="0"/>
-    
-    <!-- A shared secret between mobile app and control panel -->
-    <Parameter name="hash.secret" value="changeme-C3z9vi54"/>
-    
-    <!-- This directory is used to store files by plugins -->
-    <Parameter name="plugins.files.directory" value="/opt/tomcat/work/hmdm/plugins"/>
-    
-    <!-- Configuration for logging plugin -->
-    <Parameter name="plugin.devicelog.persistence.config.class" value="com.hmdm.plugins.devicelog.persistence.postgres.DeviceLogPostgresPersistenceConfiguration"/>
-    
-    <!-- Don't change this -->
-    <Parameter name="role.orgadmin.id" value="2"/>
-
-    <!-- Swagger Docs UI location -->
-    <Parameter name="swagger.host" value="hmdm.example.com"/>
-    <Parameter name="swagger.base.path" value="/ROOT/rest"/>
-    
-    <Parameter name="initialization.completion.signal.file" value="/opt/tomcat/work/hmdm/.initialized"/>
-    <Parameter name="log4j.config" value="file:///opt/tomcat/work/hmdm/log4j-hmdm.xml"/>
-    <Parameter name="aapt.command" value="aapt"/>
-
-    <!-- MQTT notification service parameters -->
-    <Parameter name="mqtt.server.uri" value="localhost:31000"/>
-    
-    <!-- Fast device search by last characters -->
-    <Parameter name="device.fast.search.chars" value="5"/>
-
-    <!-- MQTT authentication for more security -->
-    <Parameter name="mqtt.auth" value="1"/> 
-
-    <!-- Email parameters are necessary for password recovery -->
-    <Parameter name="smtp.host" value="smtp.example.com"/>
-    <Parameter name="smtp.port" value="587"/>
-    <Parameter name="smtp.ssl" value="0"/>
-    <Parameter name="smtp.starttls" value="0"/>
-    <Parameter name="smtp.username" value=""/>
-    <Parameter name="smtp.password" value=""/>
-    <Parameter name="smtp.from" value="admin@hmdm.example.com"/>
-    
-    <!-- Email templates location -->
-    <Parameter name="email.recovery.subj" value="/opt/tomcat/work/hmdm/emails/_LANGUAGE_/recovery_subj.txt"/>
-    <Parameter name="email.recovery.body" value="/opt/tomcat/work/hmdm/emails/_LANGUAGE_/recovery_body.txt"/>
-    
-    <!-- APK trusted URL -->
-    <Parameter name="apk.trusted.url" value="https://h-mdm.com"/>
-    
-</Context>
-TOMCAT_CONTEXT
-    
-    echo "✓ Tomcat context configuration created at $TOMCAT_CONF/ROOT.xml"
+    # Verify deployment
+    if [ -d "$TOMCAT_WEBAPPS/ROOT/WEB-INF" ]; then
+        echo "✓ HMDM deployment verified"
+    else
+        echo "ERROR: HMDM installation failed - ROOT application not deployed"
+        exit 1
+    fi
     
     # Clean up
     cd /
     rm -rf "$TEMP_INSTALL_DIR"
     
-    # Verify deployment
-    if [ -d "$TOMCAT_WEBAPPS/ROOT/WEB-INF" ]; then
-        echo "✓ HMDM deployment verified"
-        echo "✓ Configuration file: $TOMCAT_CONF/ROOT.xml"
-    else
-        echo "ERROR: HMDM deployment failed"
-        exit 1
-    fi
 else
-    echo "Headwind MDM already installed, skipping deployment"
+    echo "Headwind MDM already installed, skipping installation"
 fi
 
 # Substitute environment variables in the nginx config file
@@ -178,24 +167,15 @@ mkdir -p "$CERT_DIR" "$KEY_DIR"
 
 # Check if SSL certificates exist, if not create self-signed for testing
 if [ ! -f "$CERT_DIR/hmdm.crt" ] || [ ! -f "$KEY_DIR/hmdm.key" ]; then
-    echo "SSL certificates not found, generating self-signed certificate for testing..."
+    echo "✓ Generating self-signed SSL certificate..."
     
-    # Generate with better error reporting to writable location
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
         -keyout "$KEY_DIR/hmdm.key" \
         -out "$CERT_DIR/hmdm.crt" \
         -subj "/CN=${HMDM_SERVER_URL:-localhost}"
     
-    # Check if generation was successful
-    if [ $? -eq 0 ] && [ -f "$CERT_DIR/hmdm.crt" ]; then
-        echo "✓ Self-signed certificate created"
-        chmod 644 "$CERT_DIR/hmdm.crt"
-        chmod 600 "$KEY_DIR/hmdm.key"
-    else
-        echo "⚠ Failed to generate SSL certificate"
-        ls -la "$CERT_DIR/" 2>&1 || echo "  → Certificate directory listing failed"
-        ls -la "$KEY_DIR/" 2>&1 || echo "  → Key directory listing failed"
-    fi
+    chmod 644 "$CERT_DIR/hmdm.crt"
+    chmod 600 "$KEY_DIR/hmdm.key"
 fi
 
 # Update environment variables for nginx config
@@ -209,63 +189,36 @@ envsubst '\
   < /etc/nginx/sites-available/headwind.conf.template \
   > /etc/nginx/sites-available/headwind.conf
 
-# Create symlink to enable the site
 ln -sf /etc/nginx/sites-available/headwind.conf /etc/nginx/sites-enabled/headwind.conf
 
-# Test nginx configuration (retry a few times)
-NGINX_TEST_RETRIES=5
-NGINX_TEST_COUNT=0
-while [ $NGINX_TEST_COUNT -lt $NGINX_TEST_RETRIES ]; do
-    if nginx -t 2>/dev/null; then
-        echo "✓ Nginx configuration valid"
-        break
-    else
-        NGINX_TEST_COUNT=$((NGINX_TEST_COUNT + 1))
-        if [ $NGINX_TEST_COUNT -lt $NGINX_TEST_RETRIES ]; then
-            echo "⚠ Nginx config test failed (attempt $NGINX_TEST_COUNT/$NGINX_TEST_RETRIES), retrying..."
-            sleep 1
-        else
-            echo "✗ Nginx config test failed after $NGINX_TEST_RETRIES attempts"
-            echo "Checking for certificate files:"
-            ls -la /etc/ssl/certs/hmdm.crt 2>&1 || echo "  → Certificate file not found"
-            ls -la /etc/ssl/private/hmdm.key 2>&1 || echo "  → Key file not found"
-        fi
-    fi
-done
+# Test and start nginx
+if nginx -t 2>/dev/null; then
+    echo "✓ Nginx configuration valid"
+    echo "✓ Starting Nginx..."
+    nginx -g "daemon off;" &
+else
+    echo "✗ Nginx config test failed"
+    exit 1
+fi
 
-echo "Starting Nginx..."
-nginx -g "daemon off;" &
+echo "✓ Starting Tomcat 9..."
+# Change to Tomcat directory
+cd /var/lib/tomcat9
 
-echo "Starting Tomcat 9..."
-# Change to a valid directory before starting Tomcat
-cd /opt/tomcat
-
-# Create HMDM work directories
-mkdir -p /opt/tomcat/work/hmdm/files
-mkdir -p /opt/tomcat/work/hmdm/plugins
-
-# Set Tomcat system properties for HMDM configuration as a single line
-export CATALINA_OPTS="-Djdbc.driver=org.postgresql.Driver -Djdbc.url=jdbc:postgresql://${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-hmdm} -Djdbc.username=${DB_USER:-hmdm} -Djdbc.password=${DB_PASSWORD:-topsecret} -Dbase.directory=/opt/tomcat/work/hmdm -Dfiles.directory=/opt/tomcat/work/hmdm/files -Dplugins.files.directory=/opt/tomcat/work/hmdm/plugins -Dbase.url=https://${HMDM_SERVER_URL:-hmdm.example.com} -Dusage.scenario=private -Dhash.secret=changeme-C3z9vi54 -Dsecure.enrollment=0 -Drole.orgadmin.id=2 -Ddevice.fast.search.chars=5 -Dmqtt.auth=1 -Dmqtt.server.uri=${HMDM_SERVER_URL:-hmdm.example.com}:31000 -Dsmtp.host= -Dsmtp.port=25 -Dsmtp.ssl=0 -Dsmtp.starttls=0 -Dsmtp.username= -Dsmtp.password= -Dsmtp.from=noreply@${HMDM_SERVER_URL:-hmdm.example.com} -Daapt.command=aapt -Dswagger.host=${HMDM_SERVER_URL:-hmdm.example.com} -Dswagger.base.path=/rest"
-
-echo "Configuration summary:"
-echo "  Database: jdbc:postgresql://${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-hmdm}"
-echo "  Base URL: https://${HMDM_SERVER_URL:-hmdm.example.com}"
-echo "  Work directory: /opt/tomcat/work/hmdm"
+echo "Headwind MDM is starting..."
+echo "  - Nginx: https://${HMDM_SERVER_URL:-hmdm.example.com} (reverse proxy)"
+echo "  - Tomcat: http://localhost:8080 (application server)"
+echo "  - Default login: admin:admin"
+echo "  - Database: ${DB_HOST:-postgres}/${DB_NAME:-hmdm}"
 echo ""
 
 # Start Tomcat in foreground so Docker container stays running
-if [ -x /opt/tomcat/bin/catalina.sh ]; then
-    /opt/tomcat/bin/catalina.sh run
+if [ -x /usr/share/tomcat9/bin/catalina.sh ]; then
+    /usr/share/tomcat9/bin/catalina.sh run
 else
-    echo "⚠ Tomcat startup failed - catalina.sh not found at /opt/tomcat/bin/catalina.sh"
+    echo "✗ Tomcat startup failed - catalina.sh not found"
     exit 1
 fi &
-
-echo "Headwind MDM is starting..."
-echo "  - Nginx: https://${HMDM_SERVER_URL} (reverse proxy)"
-echo "  - Tomcat: http://localhost:8080 (application server)"
-echo "  - Default login: admin:admin"
-echo ""
 
 # Keep the container running
 wait

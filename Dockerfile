@@ -23,18 +23,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install Tomcat 9 from Apache (instead of Ubuntu package which needs additional configuration)
-RUN mkdir -p /opt/tomcat && \
+# Install Tomcat 9 at /var/lib/tomcat9 (standard Ubuntu location) so HMDM installer can find it
+RUN mkdir -p /var/lib/tomcat9 && \
     cd /tmp && \
     curl -s https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.75/bin/apache-tomcat-9.0.75.tar.gz -o tomcat.tar.gz && \
-    tar -xzf tomcat.tar.gz -C /opt/tomcat --strip-components=1 && \
+    tar -xzf tomcat.tar.gz -C /var/lib/tomcat9 --strip-components=1 && \
     rm tomcat.tar.gz && \
     # Remove the default Tomcat ROOT webapp so HMDM can be deployed fresh
-    rm -rf /opt/tomcat/webapps/ROOT && \
-    chmod +x /opt/tomcat/bin/*.sh
-
-# Create symlink for easier access
-RUN ln -s /opt/tomcat /usr/share/tomcat9
+    rm -rf /var/lib/tomcat9/webapps/ROOT && \
+    chmod +x /var/lib/tomcat9/bin/*.sh && \
+    # Create symlinks for convenience
+    ln -s /var/lib/tomcat9 /opt/tomcat && \
+    ln -s /var/lib/tomcat9 /usr/share/tomcat9
 
 # Remove default nginx config
 RUN rm /etc/nginx/sites-enabled/default
