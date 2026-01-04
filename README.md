@@ -37,7 +37,7 @@ HMDM_SERVER_URL=hmdm.example.com
 
 # PostgreSQL Configuration
 DB_USER=hmdm
-DB_PASSWORD=topsecret
+DB_PASSWORD=topsecret #change to something more secure
 DB_NAME=hmdm
 ```
 
@@ -204,7 +204,8 @@ docker attach headwind-nginx
 |------|---------|---------|
 | 80 | Nginx | HTTP redirect to HTTPS |
 | 443 | Nginx | HTTPS reverse proxy |
-| 8080 | Tomcat | Direct application server access
+| 8080 | Tomcat | Direct application server access |
+| 31000 | MQTT | MQTT broker for device communication
 
 ## SSL Certificates
 
