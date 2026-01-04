@@ -1,0 +1,8 @@
+# Ensure shell scripts are executable on checkout
+*.sh export-ignore
+generate-certs.sh diff=bash merge=union -text
+docker-entrypoint.sh diff=bash merge=union -text
+
+# Set eol=lf for all shell scripts to ensure Unix line endings
+*.sh eol=lf
+

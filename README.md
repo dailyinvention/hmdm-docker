@@ -22,6 +22,22 @@ This Docker Compose setup installs and runs Headwind MDM with Nginx as a reverse
 
 ## Quick Start
 
+### 0. Clone and Setup
+
+Clone the repository and run the setup script:
+
+```bash
+git clone <repository-url>
+cd headwind-hmdm-install
+./setup.sh
+```
+
+The setup script automatically:
+- Configures Git hooks for automatic script permission updates on future pulls
+- Makes all scripts executable
+- Creates necessary directories for certificates
+- Sets up `.env` from `.env.example` if needed
+
 ### 1. Configure Environment Variables
 
 Edit `.env` with your settings:
@@ -50,7 +66,6 @@ Place your SSL certificate files in:
 Or generate a Certificate Signing Request (CSR) for a Certificate Authority:
 
 ```bash
-chmod +x generate-certs.sh
 ./generate-certs.sh
 ```
 

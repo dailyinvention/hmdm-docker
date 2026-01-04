@@ -1,0 +1,9 @@
+#!/bin/bash
+# This hook runs automatically after git clone and git pull
+# It makes shell scripts executable
+
+# Make scripts executable
+chmod +x generate-certs.sh 2>/dev/null
+chmod +x docker-entrypoint.sh 2>/dev/null
+
+echo "✓ Script permissions updated"
