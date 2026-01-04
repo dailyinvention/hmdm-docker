@@ -70,11 +70,36 @@ DB_NAME=hmdm
 
 ### 2. Add SSL Certificates
 
-Place your SSL certificate files in:
-- `certs/hmdm.crt` - SSL certificate
-- `private/hmdm.key` - Private key
+⚠️ **Important Security Notice:**
 
-Or generate a Certificate Signing Request (CSR) for a Certificate Authority:
+If SSL certificate files are not provided, the Docker image will automatically generate and use **self-signed certificates**. These are suitable for **local testing and development only** but should **never be used in production environments exposed on the internet**. Self-signed certificates will trigger browser security warnings and are not trusted by certificate authorities.
+
+#### Option A: Use an Authorized SSL Provider (Recommended for Production)
+
+For production deployments exposed on the internet, obtain certificates from a trusted Certificate Authority:
+
+1. **Acquire certificates from an authorized SSL provider** such as:
+   - Let's Encrypt (free, automated)
+   - DigiCert
+   - Sectigo
+   - GlobalSign
+   - Amazon Certificate Manager (ACM)
+
+2. **Place the certificate files in the project:**
+   - `certs/hmdm.crt` - SSL certificate
+   - `private/hmdm.key` - Private key
+
+3. **Ensure proper permissions (on Linux/macOS):**
+   ```bash
+   chmod 644 certs/hmdm.crt
+   chmod 600 private/hmdm.key
+   ```
+
+4. **Proceed with deployment**
+
+#### Option B: Generate a Certificate Signing Request (CSR) for a CA
+
+To obtain a signed certificate from a Certificate Authority:
 
 **Linux/macOS:**
 ```bash
@@ -117,10 +142,23 @@ You can also set `CERT_TYPE` in `.env`:
 CERT_TYPE=ecc  # or rsa
 ```
 
-**To use a CA-signed certificate:**
+**Steps to obtain a CA-signed certificate:**
 1. Submit `certs/hmdm.csr` to your Certificate Authority (Let's Encrypt, DigiCert, etc.)
 2. Once you receive the signed certificate, save it as `certs/hmdm.crt`
-3. Proceed with deployment
+3. Ensure proper permissions: `chmod 644 certs/hmdm.crt`
+4. Proceed with deployment
+
+#### Option C: Self-Signed Certificates (Local Testing Only)
+
+If certificates are not provided, the Docker image will automatically generate self-signed certificates on startup. This is acceptable **only for**:
+- Local development and testing
+- Internal testing environments
+- Proof-of-concept deployments
+
+**Do NOT use self-signed certificates for:**
+- Production environments
+- Public/internet-facing deployments
+- Any scenario requiring browser trust or end-user access
 
 ### 3. Start the Services
 
