@@ -1,7 +1,10 @@
 FROM ubuntu:22.04
 
+# Set non-interactive mode for apt
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Install dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
     gettext-base \
     aapt \
@@ -14,7 +17,8 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     gnupg \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Remove default nginx config
 RUN rm /etc/nginx/sites-enabled/default
