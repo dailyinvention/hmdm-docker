@@ -74,32 +74,25 @@ DB_NAME=hmdm
 
 If SSL certificate files are not provided, the Docker image will automatically generate and use **self-signed certificates**. These are suitable for **local testing and development only** but should **never be used in production environments exposed on the internet**. Self-signed certificates will trigger browser security warnings and are not trusted by certificate authorities.
 
-#### Option A: Use an Authorized SSL Provider (Recommended for Production)
+#### Option A: Already Have a Certificate from an Authorized Provider (Recommended for Production)
 
-For production deployments exposed on the internet, obtain certificates from a trusted Certificate Authority:
+If you already have an SSL certificate from a trusted Certificate Authority such as Let's Encrypt, DigiCert, Sectigo, GlobalSign, or Amazon Certificate Manager:
 
-1. **Acquire certificates from an authorized SSL provider** such as:
-   - Let's Encrypt (free, automated)
-   - DigiCert
-   - Sectigo
-   - GlobalSign
-   - Amazon Certificate Manager (ACM)
-
-2. **Place the certificate files in the project:**
+1. **Place the certificate files in the project:**
    - `certs/hmdm.crt` - SSL certificate
    - `private/hmdm.key` - Private key
 
-3. **Ensure proper permissions (on Linux/macOS):**
+2. **Ensure proper permissions (on Linux/macOS):**
    ```bash
    chmod 644 certs/hmdm.crt
    chmod 600 private/hmdm.key
    ```
 
-4. **Proceed with deployment**
+3. **Proceed with deployment**
 
 #### Option B: Generate a Certificate Signing Request (CSR) for a CA
 
-To obtain a signed certificate from a Certificate Authority:
+If you don't yet have a certificate, generate a Certificate Signing Request (CSR) to submit to a Certificate Authority:
 
 **Linux/macOS:**
 ```bash
