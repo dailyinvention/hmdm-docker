@@ -288,19 +288,19 @@ The container expects SSL certificates to be available at the paths specified in
 
 ### Network/Internet Connectivity Issues
 
-**Error: "Cannot reach h-mdm.com. Check your internet connection."**
+**Error: "Cannot reach [installer URL]. Check your internet connection."**
 
 The container needs internet access to download the Headwind MDM installer. Try these steps:
 
 1. **Verify Docker has internet access:**
    ```bash
-   docker run --rm alpine wget -q -O - https://h-mdm.com
+   docker run --rm alpine wget -q -O - https://example.com
    ```
    If this fails, Docker doesn't have internet access.
 
 2. **Check DNS resolution:**
    ```bash
-   docker run --rm alpine nslookup h-mdm.com
+   docker run --rm alpine nslookup example.com
    ```
    If this fails, DNS isn't working inside the container.
 
@@ -311,8 +311,8 @@ The container needs internet access to download the Headwind MDM installer. Try 
 
 4. **Check your network/firewall:**
    - Ensure port 443 outbound is open
-   - Check if you're behind a proxy or firewall blocking h-mdm.com
-   - Try accessing h-mdm.com from your host machine
+   - Check if you're behind a proxy or firewall blocking the installer URL
+   - Try accessing the installer URL from your host machine
 
 5. **Check Docker daemon network settings:**
    ```bash
