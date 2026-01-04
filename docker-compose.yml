@@ -1,25 +1,34 @@
 version: '3.8'
 
+networks:
+  headwind-network:
+    driver: bridge
+
 services:
   postgres:
     image: postgres:15-alpine
     container_name: headwind-postgres
+    networks:
+      - headwind-network
     environment:
-      - POSTGRES_DB=${DB_NAME}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 40s
 
   nginx:
     build: .
     container_name: headwind-nginx
+    networks:
+      - headwind-network
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,6 +36,7 @@ services:
       - "80:80"
       - "443:443"
       - "8080:8080"
+      - "31000:31000"
     environment:
       - HMDM_SERVER_URL=${HMDM_SERVER_URL}
       - SSL_CERTIFICATE_PATH=${SSL_CERTIFICATE_PATH}
@@ -41,8 +51,11 @@ services:
       - ./private:/etc/ssl/private:ro
       # Tomcat data
       - tomcat_data:/var/lib/tomcat9
+      # HMDM certificates and data (writable)
+      - hmdm_data:/var/lib/hmdm
     restart: unless-stopped
 
 volumes:
   postgres_data:
   tomcat_data:
+  hmdm_data:

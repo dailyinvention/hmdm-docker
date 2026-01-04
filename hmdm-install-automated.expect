@@ -1,0 +1,102 @@
+#!/usr/bin/expect -f
+
+# This script automates the Headwind MDM installer
+# It provides the necessary responses to the interactive prompts
+
+set timeout 600
+
+# Get environment variables from parent shell using global env array
+set db_host [expr {[info exists env(DB_HOST)] ? $env(DB_HOST) : ""}]
+set db_port [expr {[info exists env(DB_PORT)] ? $env(DB_PORT) : ""}]
+set db_user [expr {[info exists env(DB_USER)] ? $env(DB_USER) : ""}]
+set db_pass [expr {[info exists env(DB_PASSWORD)] ? $env(DB_PASSWORD) : ""}]
+set db_name [expr {[info exists env(DB_NAME)] ? $env(DB_NAME) : ""}]
+set hmdm_server [expr {[info exists env(HMDM_SERVER_URL)] ? $env(HMDM_SERVER_URL) : ""}]
+
+# Set defaults if not provided
+if {$db_host eq ""} {
+    set db_host "localhost"
+}
+if {$db_port eq ""} {
+    set db_port "5432"
+}
+if {$db_user eq ""} {
+    set db_user "hmdm"
+}
+if {$db_name eq ""} {
+    set db_name "hmdm"
+}
+if {$hmdm_server eq ""} {
+    set hmdm_server "hmdm.example.com"
+}
+
+puts "Starting automated HMDM installation..."
+puts "Database Host: $db_host"
+puts "Database Port: $db_port"
+puts "Database User: $db_user"
+puts "Database Name: $db_name"
+puts "HMDM Server URL: $hmdm_server"
+
+# Spawn the installer
+spawn bash ./hmdm_install.sh
+
+# Respond to install missing packages prompt
+expect {
+    "Install missing package*?" {
+        send "n\r"
+        exp_continue
+    }
+    "Proceed as*?" {
+        send "Y\r"
+        exp_continue
+    }
+    "Enter the Tomcat base directory:*" {
+        send "/var/lib/tomcat9\r"
+        exp_continue
+    }
+    "Enter the Database host*" {
+        send "$db_host\r"
+        exp_continue
+    }
+    "Enter the Database port*" {
+        send "$db_port\r"
+        exp_continue
+    }
+    "Enter the Database user*" {
+        send "$db_user\r"
+        exp_continue
+    }
+    "Enter the password*" {
+        send "$db_pass\r"
+        exp_continue
+    }
+    "Enter the Database name*" {
+        send "$db_name\r"
+        exp_continue
+    }
+    "Enter the base domain*" {
+        send "$hmdm_server\r"
+        exp_continue
+    }
+    "location*" {
+        send "\r"
+        exp_continue
+    }
+    "Continue*?" {
+        send "Y\r"
+        exp_continue
+    }
+    "YES, I want to continue*?" {
+        send "Y\r"
+        exp_continue
+    }
+    eof {
+        puts "Installation complete"
+    }
+    timeout {
+        puts "ERROR: Installation timed out"
+        exit 1
+    }
+}
+
+exit 0
