@@ -22,13 +22,24 @@ else
     DOMAIN="hmdm.example.com"
 fi
 
+# Get certificate type from environment variable (default to ECC)
+CERT_TYPE="${CERT_TYPE:-ecc}"
+CERT_TYPE=$(echo "$CERT_TYPE" | tr '[:upper:]' '[:lower:]')
+
 echo -e "${YELLOW}SSL Certificate Signing Request (CSR) Generation${NC}"
 echo "Domain: $DOMAIN"
+echo "Certificate Type: $CERT_TYPE"
 echo ""
 
-# Generate private key
+# Generate private key based on certificate type
 echo -e "${GREEN}Generating private key...${NC}"
-openssl genrsa -out private/hmdm.key 2048
+if [ "$CERT_TYPE" = "rsa" ]; then
+    openssl genrsa -out private/hmdm.key 2048
+    KEY_INFO="RSA 2048-bit"
+else
+    openssl ecparam -name prime256v1 -genkey -noout -out private/hmdm.key
+    KEY_INFO="ECC (prime256v1)"
+fi
 
 # Generate CSR (Certificate Signing Request)
 echo -e "${GREEN}Generating Certificate Signing Request (CSR)...${NC}"
@@ -42,7 +53,7 @@ echo ""
 echo -e "${GREEN}CSR generation complete!${NC}"
 echo ""
 echo -e "${YELLOW}Files created:${NC}"
-echo "  Private Key:  private/hmdm.key"
+echo "  Private Key:  private/hmdm.key ($KEY_INFO)"
 echo "  CSR File:     certs/hmdm.csr"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
