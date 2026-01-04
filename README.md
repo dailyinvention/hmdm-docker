@@ -30,6 +30,7 @@ Edit `.env` with your settings:
 # Shared SSL Configuration
 SSL_CERTIFICATE_PATH=/etc/ssl/certs/hmdm.crt
 SSL_CERTIFICATE_KEY_PATH=/etc/ssl/private/hmdm.key
+CERT_TYPE=ecc # Use 'rsa' or 'ecc'
 
 # HMDM Configuration
 HMDM_SERVER_URL=hmdm.example.com
@@ -56,6 +57,23 @@ chmod +x generate-certs.sh
 This will create:
 - `private/hmdm.key` - Private key (keep this safe!)
 - `certs/hmdm.csr` - Certificate Signing Request
+
+**Certificate Type Options:**
+
+The `generate-certs.sh` script supports both ECC and RSA certificate types:
+
+```bash
+# Generate ECC certificate (default, recommended)
+CERT_TYPE=ecc ./generate-certs.sh
+
+# Generate RSA certificate
+CERT_TYPE=rsa ./generate-certs.sh
+```
+
+You can also set `CERT_TYPE` in `.env`:
+```bash
+CERT_TYPE=ecc  # or rsa
+```
 
 **To use a CA-signed certificate:**
 1. Submit `certs/hmdm.csr` to your Certificate Authority (Let's Encrypt, DigiCert, etc.)
@@ -130,6 +148,12 @@ Headwind MDM is starting...
 - **HMDM_SERVER_URL** - Server URL/domain for Headwind MDM (e.g., `hmdm.example.com`)
 - **SSL_CERTIFICATE_PATH** - Path to SSL certificate inside container (default: `/etc/ssl/certs/hmdm.crt`)
 - **SSL_CERTIFICATE_KEY_PATH** - Path to SSL private key inside container (default: `/etc/ssl/private/hmdm.key`)
+
+### SSL/TLS Configuration
+
+- **CERT_TYPE** - Certificate type for CSR generation: `ecc` (default, recommended) or `rsa` (default: `ecc`)
+  - ECC (Elliptic Curve Cryptography): Modern, smaller keys, better performance
+  - RSA: Traditional, widely compatible, larger keys
 
 ### Database
 
