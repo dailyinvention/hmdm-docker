@@ -32,14 +32,14 @@ Clone the repository and run the setup script appropriate for your operating sys
 **Linux/macOS:**
 ```bash
 git clone <repository-url>
-cd headwind-hmdm-install
+cd hmdm-docker
 ./setup.sh
 ```
 
 **Windows:**
 ```powershell
 git clone <repository-url>
-cd headwind-hmdm-install
+cd hmdm-docker
 .\setup.ps1
 ```
 
